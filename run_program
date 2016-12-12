@@ -1,0 +1,141 @@
+﻿#! /bin/sh
+
+export LD_LIBRARY_PATH=/usr/lib/oracle/11.2/client64/lib:$LD_LIBRARY_PATH
+export TNS_ADMIN=/windows/u/Domino8/BIN
+export NLS_LANG=RUSSIAN_CIS.CL8MSWIN1251
+
+filelist="/somefolder/list.list"
+
+if [ "$1" == "" ]
+then
+    echo "Need parameters!!!"
+    exit 0
+fi
+
+pname='name for window name'
+ptype='process name'
+adressat='user@mail'
+thema='Ошибка подключения к серверу Connection error'
+
+nomer[1]=$1
+nomer[2]=$2
+nomer[3]=$3
+nomer[4]=$4
+nomer[5]=$5
+nomer[6]=$6
+
+Desktop=$7
+
+geometry[1]='0,50,690,700,270' #sizes and positions of windows
+geometry[2]='0,50,370,700,270'
+geometry[3]='0,50,50,700,270'
+geometry[4]='0,800,50,700,270'
+geometry[5]='0,800,370,700,270'
+geometry[6]='0,800,690,700,270'
+
+z=''
+zxid=''
+live=1
+sql=''
+var0=0
+
+#Проверим, запущено ли. It's run?
+if [ -s "/somefolder/d/"$ptype"_"$Desktop".pid" ]
+then
+    var0=0
+else
+    touch "/somefolder/d/"$ptype"_"$Desktop".pid"
+    echo "9999999999" > "/somefolder/d/"$ptype"_"$Desktop".pid"
+fi
+if [ $(pidof sh | grep -w $(cat "/somefolder/d/"$ptype"_"$Desktop".pid") | wc -l) == "1" ]
+then
+    date +%d/%m/%y-%T >> log/while.log;
+    echo "Уже запущено. Fail!" >> log/while.log;
+    exit
+else
+    date +%d/%m/%y-%T >> log/while.log;
+    echo "Всё нормально. All right. Run." >> log/while.log;
+    echo $$ > "/somefolder/d/"$ptype"_"$Desktop".pid"
+fi
+#----------------------
+
+while [ "$var0" -eq "0" ]
+do
+	for A in '1' '2' '3' '4' '5' '6'
+	do
+		dpath='/somefolder/d/'$ptype${nomer[$A]}'.d'
+		path=''
+		path=$ptype${nomer[$A]}
+		winname=''
+		winname=$pname'-'${nomer[$A]}
+		prname=''
+		prname=$ptype${nomer[$A]}'.exe'
+		logfile=''
+		logfile='log/kkl_'${nomer[$A]}'.log'
+
+		if [ -e "$filelist" ] && [ "${nomer[$A]}" -ne "00" ] && [ $(cat "$filelist" | grep $prname) ]
+		then
+			echo -n "Всё нормально с базой ${nomer[$A]}" >> log/while.log; date +%d/%m/%y-%T >> log/while.log; echo "" >> log/while.log
+			sql=$(cat "$filelist" | grep $prname | wc -l)
+			z=$(pgrep "$prname")
+
+			if [ "$z" != "" ]
+			then
+				live=$(ps -AfH | more | grep "$z" | wc -l)
+				else
+				live=1
+			fi
+
+			if [ -n "$z" ] && [ "$live" -eq "2" ] && [ "$sql" -eq "0"  ]
+			then #Program have window? but not have connect to DB
+				kill "$z"
+				sleep 5
+				./$path &
+				sleep 25
+				z=$(pgrep "$prname")
+				zxid=$(wmctrl -l -p | grep "$z" | grep -Eo '^.{10}')
+				wmctrl -i -r $zxid -N "$winname"
+				wmctrl -i -r $zxid -e ${geometry[$A]}
+				wmctrl -i -r $zxid -t $Desktop
+				echo -n "Программа была перезапущена в  Programm restarted at " >> $logfile; date +%d/%m/%y-%T >> $logfile; echo "" >> $logfile
+				echo 1 > $dpath
+			fi
+
+			if [ "$z" = "" ] && [ "$live" -eq "1" ] && [ "$sql" -eq "0"  ]
+			then #NOOOO! Program not started! Start now! ))
+				./$path &
+				sleep 25
+				z=$(pgrep "$prname")
+				zxid=$(wmctrl -l -p | grep "$z" | grep -Eo '^.{10}')
+				wmctrl -i -r $zxid -N "$winname"
+				wmctrl -i -r $zxid -e ${geometry[$A]}
+				wmctrl -i -r $zxid -t $Desktop
+				echo -n "Программа была запущена в  Programm started at" >> $logfile; date +%d/%m/%y-%T >> $logfile; echo "" >> $logfile
+				echo 1 > $dpath
+			else	#Programm run and live. Need resize and replace
+				zxid=$(wmctrl -l -p | grep "$z" | grep -Eo '^.{10}')
+				wmctrl -i -r $zxid -N "$winname"
+				wmctrl -i -r $zxid -e ${geometry[$A]}
+				wmctrl -i -r $zxid -t $Desktop
+				echo 1 > $dpath
+				if [ "$sql" -gt "1"  ]
+				then
+					echo 2 > $dpath
+				fi
+			fi
+
+		else
+			if [ "${nomer[$A]}" -ne "00" ]
+			then
+				echo -n "Всё плохо со связью в  Connection failed at" >> $logfile; date +%d/%m/%y-%T >> $logfile; echo "" >> $logfile
+				echo "Всё плохо со связью c Connection failed with ${nomer[$A]}" | mail -s "$thema" "$adressat"  -f "mail@mail"
+				echo 0 > $dpath
+			fi
+
+		fi
+
+	done
+
+    sleep 900
+
+done
