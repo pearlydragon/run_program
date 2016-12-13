@@ -139,3 +139,4 @@ do
     sleep 900
 
 done
+exit 0;
